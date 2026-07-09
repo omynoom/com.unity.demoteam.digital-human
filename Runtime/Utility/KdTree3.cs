@@ -354,7 +354,89 @@ namespace Unity.DemoTeam.DigitalHuman
 
 			return bestNode;
 		}
-	}
+
+        [BurstCompile(CompileSynchronously = true)]
+        private unsafe struct FindNearestForPointsJobImpl : IJobParallelFor
+        {
+            [NativeDisableUnsafePtrRestriction] public Vector3* Positions;
+            [NativeDisableUnsafePtrRestriction] public int* ClosestIndices;
+
+            [NativeDisableUnsafePtrRestriction] public Node* Nodes;
+            [NativeDisableUnsafePtrRestriction] public Point3* Points;
+
+            public void Execute(int index)
+            {
+                Vector3 target = Positions[index];
+                float bestDist = float.PositiveInfinity;
+                int bestNode = -1;
+
+                FindNearestRec(ref bestDist, ref bestNode, 0, 0, ref target);
+
+                if (bestNode != -1)
+                {
+                    ClosestIndices[index] = Points[Nodes[bestNode].point].index;
+                }
+                else
+                {
+                    ClosestIndices[index] = -1;
+                }
+            }
+
+            private void FindNearestRec(ref float bestDist, ref int bestNode, int node, int depth, ref Vector3 target)
+            {
+                int point = Nodes[node].point;
+                Vector3 vector;
+                vector.x = target.x - Points[point].x;
+                vector.y = target.y - Points[point].y;
+                vector.z = target.z - Points[point].z;
+
+                float num = vector.x * vector.x + vector.y * vector.y + vector.z * vector.z;
+                if (num < bestDist)
+                {
+                    bestDist = num;
+                    bestNode = node;
+                }
+
+                int num2 = depth % 3;
+                float num3 = ((float*)&vector)[num2];
+                int num4 = ((num3 < 0f) ? Nodes[node].stepL : Nodes[node].stepR);
+                int num5 = ((num3 < 0f) ? Nodes[node].stepR : Nodes[node].stepL);
+
+                if (num4 != 0)
+                {
+                    FindNearestRec(ref bestDist, ref bestNode, node + num4, depth + 1, ref target);
+                }
+
+                if (num5 != 0 && num3 * num3 < bestDist)
+                {
+                    FindNearestRec(ref bestDist, ref bestNode, node + num5, depth + 1, ref target);
+                }
+            }
+        }
+
+        public unsafe void FindNearestForPointsJob(Vector3* positions, int* closestIndices, int length)
+        {
+            if (size == 0 || nodes == null || points == null)
+                return;
+
+            fixed (Node* nodesPtr = nodes)
+            {
+                fixed (Point3* pointsPtr = points)
+                {
+                    var job = new FindNearestForPointsJobImpl
+                    {
+                        Positions = positions,
+                        ClosestIndices = closestIndices,
+                        Nodes = nodesPtr,
+                        Points = pointsPtr
+                    };
+
+                    JobHandle handle = job.Schedule(length, 64);
+                    handle.Complete();
+                }
+            }
+        }
+    }
 
 	public static class BalancedBinaryTreeInfo
 	{
