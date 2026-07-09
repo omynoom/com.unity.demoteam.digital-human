@@ -8,7 +8,7 @@ Declare the package as a git dependency in `Packages/manifest.json`:
 
 ```
 "dependencies": {
-    "com.unity.demoteam.digital-human": "https://github.com/Unity-Technologies/com.unity.demoteam.digital-human.git",
+    "com.unity.demoteam.digital-human": "https://github.com/omynoom/com.unity.demoteam.digital-human.git",
     ...
 }
 ```
